@@ -47,11 +47,11 @@ PHASE_1_NUM_COURSES = [17, 18, 19, 20, 21]
 
 # Proceed to the phase 2 optimization after phase 1 after not finding any new incumbent solutions for the given seconds.
 # Recommended: 30 to 60 seconds.
-PHASE_1_TIME_LIMIT = 30 # in seconds
+PHASE_1_TIME_LIMIT = 60 # in seconds
 
 # Time limit for phase 2 optimization
 # Recommended: 2 to 8 hours.
-PHASE_2_TIME_LIMIT = 60 * 8 # in seconds
+PHASE_2_TIME_LIMIT = 60 * 60 * 4 # in seconds
 
 # CSV File Column names in students.csv
 RANDOMIZED_ID_COL = "Randomized ID"
