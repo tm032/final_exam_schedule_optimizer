@@ -1,0 +1,88 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Load Data | Exam Scheduler{% endblock %}
+{% block head %}
+{% endblock %}
+{% block settingsTab %}active{% endblock %}
+{% block content %}
+<br/>
+<div class="card w-75 mx-auto border-success">
+  <div class="card-body">
+    <p class="font-italic">
+      This is the first page of the exam scheduling tool, where you upload the “exam scheduling” 
+      spreadsheet created by the registrar's office with two tabs: one listing course enrollments 
+      by student and one listing information about each course.
+    </p>
+    <ol>
+      <li>Upload the exam scheduling spreadsheet by selecting it in the “Data File” box and then clicking “Upload”</li>
+      <li>Fill in the Semester's name, which must exactly match the semester's name in the “Academic Period Description” column.  E.g. this will look like "Spring Term 2022-2023"</li>
+      <li>Select the exam start date (the first day of exams, after reading day) and end date (the last day of exams)</li>
+      <li>Enter any “Special Courses” in the Special Courses box.  Courses should be in all caps with no space separating the department and number, and then separated by a comma.
+          <br/><br/>Example: MATH201, ECON101, SIGN101-02, POLS140-02/03<br/><br/>
+          These are the courses that will be individually scheduled in an exam slot.  If all sections of a 
+          course will be assigned a common slot, just enter the course name (e.g. MATH201).  
+          If just one section of a course will have its own slot, enter the individual section with a hyphen (e.g. SIGN101-02 to denote section 02 of SIGN101).  
+          If some - but not all - sections will have a common exam slot, separate those sections with a slash (e.g. POLS140-02/03 for just sections 03 and 04 of POLS140). 
+           For reference, you can quickly copy and paste lists from previous semesters and then edit them.</li>  
+      <li>Once all information is entered, click the “Go to settings” button below.</li>
+    </ol>
+  </div>
+</div>
+<br/>
+<div class="card w-75 mx-auto">
+    <h5 class="card-header">Load Final Exam Schedule Data</h5>
+    <div class="card-body">
+      <a class="btn btn-secondary" href="{% url "settings" %}">Go to settings</a>
+        <p class="text-danger font-weight-bold">Warning: Current data will be deleted if you load a new data</p>
+      {{ errors|safe }}
+      <form method="POST" name="load-form" id="load-form" action="{% url "load" %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="semester">Semester's name: Must match with the Excel's "Academic Period Description" field</label> {{ form.semester }} <br/>
+        <label for="start_date">Exam start date:</label> {{ form.start_date }}<br/>
+        <label for="end_date">Exam end date:</label> {{ form.end_date }}<br/>
+        <label for="exam start times">Exam start times: </label> {{form.times}}<br/>
+        <label for="special_courses">Special Courses:</label>
+        <p>Enter course groups separated by comma. <b>Examples: MATH201, ECON101, SIGN101-02, POLS140-02/03</b></p>
+        {{ form.special_courses }}
+        <br/>
+        <label for="special_courses">Courses without final exams:</label>
+        <p>Enter CRNs separated by comma. <b>Examples: 54920, 52687, ...</b> 
+          <br/>This is optional. By default, courses without a meeting time is considered as having no final exam.</p>
+        {{ form.no_exam_crns }}
+        <br/>
+        <label for="file">Student Data (must be .csv file): </label> 
+        {{ form.student_file_csv }} &nbsp;
+        <br/>
+        <label for="file">Course Data (must be .csv file): </label> 
+        {{ form.course_file_csv }} &nbsp;
+        <input type="submit" class="btn btn-primary" id="submitBtn" value="Upload"/>
+        <br/>
+        </form>
+        <br/>
+        <h5>{{fall_name}} special courses&nbsp;&nbsp;<button class="btn btn-primary copyBtn" id="sp23">Copy</button></h5>
+        <textarea id="sp23special" class="form-control" cols='40' rows='3' readonly>{{fall_special}}</textarea>
+        <br/>
+        <h5>{{spring_name}} special courses&nbsp;&nbsp;<button class="btn btn-primary copyBtn" id="fa22">Copy</button></h5>
+        <textarea id="fa22special" class="form-control" cols='40' rows='3' readonly>{{spring_special}}</textarea>
+        <br/>
+    </div>
+</div>
+
+<script type="text/javascript">
+  $(function() {
+    $(".copyBtn").on("click", function(){
+      let id = $(this).attr('id');
+      console.log(id);
+      navigator.clipboard.writeText($("#" + id + "special").val());
+    });
+    
+    $("#load-form").on("submit", function() {
+      $("#submitBtn").prop("disabled", true)
+      $("#submitBtn").val("Loading data... DO NOT RELOAD. This may take a few minutes.")
+    })
+  
+  });
+
+</script>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Preference Profile List | Exam Scheduler{% endblock %}
+{% block head %}
+<style>
+  /* Add your custom CSS styles here */
+</style>
+{% endblock %}
+{% block optimizeTab %}{% endblock %}
+{% block content %}
+<h1>Preference Profiles</h1>
+<a href="{% url 'create_preference_profile' %}"><button>Create Preference Profile</button></a>
+
+<a href="{% url 'optimize' %}"><button>Go Back to Optimization Screen</button></a>
+<ul>
+    {% for profile in profiles %}
+    <li>
+        <strong>{{ profile.name }}</strong>
+        <ul>
+            <li>Overlap: {{ profile.overlap }}</li>
+            <li>Three in 24: {{ profile.threein24 }}</li>
+            <li>Four in 48: {{ profile.fourin48 }}</li>
+            <li>Back-to-back: {{ profile.backtoback }}</li>
+            <li>Night to morning: {{ profile.nighttomorning }}</li>
+            <li>Night: {{ profile.night }}</li>
+            <li>Faculty overlap: {{ profile.facultyoverlap }}</li>
+            <li>Faculty back-to-back: {{ profile.facultybacktoback }}</li>
+        </ul>
+        <form id="delete-form-{{ profile.id }}" action="{% url 'delete_preference_profile' profile.id %}" method="post" style="display: inline;">
+            {% csrf_token %}
+            <button type="button" onclick="confirmDelete({{ profile.id }})">Delete</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+
+
+
+<script>
+    function confirmDelete(profileId) {
+        if (confirm('Are you sure you want to delete this profile?')) {
+            document.getElementById('delete-form-' + profileId).submit();
+        }
+    }
+</script>
+{% endblock %}

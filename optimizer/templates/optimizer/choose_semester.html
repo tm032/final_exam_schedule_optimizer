@@ -1,0 +1,57 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Load Data | Exam Scheduler{% endblock %}
+{% block head %}
+{% endblock %}
+{% block settingsTab %}active{% endblock %}
+{% block content %}
+<br/>
+<div class="card w-75 mx-auto border-success">
+    <div class="card-body">
+    <p>This page allows you to create a new semester, or change the course groups for an existing semester. If you want to create a new semester, click "Load more semester data"
+        <div class="">If you want to change something other than course groups about a schedule, you must create a new semester and use that instead. NOTE: deleting a schedule will
+            destroy all schedules that used the deleted semester.
+        </div></p>
+    <br/>
+    </div>
+</div>
+</br/>
+<div class="card w-75 mx-auto">
+    <h5 class="card-header">Choose a semester</h5>
+    <div class="card-body">
+        <table class="table table-bordered table-hover">
+            <thead>
+                <tr>
+                    <th>Semester Name</th>
+                    <th>Academic Period</th>
+                    <th>View Semester</th>
+                    <th>Delete</th>
+                </tr>
+            <tbody>
+                {% for semester in semesters %}
+                    <tr>
+                        <td>{{semester.name}}</td>
+                        <td>{{semester.academic_period}}</td>
+                        <td><a class="btn btn-primary" href="{% url "settings" pk=semester.pk %}">View Details</a></td>
+                        <td><form action="{% url 'delete_semester' pk=semester.pk %}" method="post" style="display:inline;" onsubmit="return confirmDelete();">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                        </form></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        Semester not found? <a href="{% url "load" %}">Load more semester data.</a>
+    </div>
+</div>
+<br/>
+<script>
+    function confirmDelete() {
+        return confirm('Are you sure you want to delete this semester?');
+    }
+</script>
+{% endblock %}
+
+
+

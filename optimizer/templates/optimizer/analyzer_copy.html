@@ -1,0 +1,847 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+{% load filters %}
+{% block title %}Exam Scheduler{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{% static 'optimizer/dragula.min.css' %}"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+{% endblock %}
+{% block analyzeTab %}active{% endblock %}
+{% block content %}
+<BR/>
+<div class="card w-75 mx-auto border-success" id="instruction">
+    <div class="card-body">
+        <p class="font-italic">This page allows you to evaluate and adjust a schedule.</p>
+        <ol>
+            <li>Click “Analyze the schedule” to evaluate the schedule.  Note that this process takes several minutes.</li>
+            <li>
+                If you would like to make changes to the schedule (e.g. swapping or moving 
+                the exam slot of a given course group), click and drag that course group.  
+                Then hit “Analyze the schedule” (and wait a few minutes) to see how it affects the schedule.
+            </li>
+        </ol>
+    </div>
+</div>
+<br/>
+
+<div class="container" style="margin-top: 30px">
+    <div class="row">
+        <div class="main col-9">
+            <div class="card">
+                <h5 class="card-header">Schedule details
+                    <div class="row">
+                        <div class="col text-right">
+                            <a class="btn btn-success mr-2" href="{% url 'index' %}">Return to Dashboard</a>
+                            {% if portfolio_id != -1 %}
+                            <form method="post" action="{% url 'portfolio_summary' portfolio_id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary mr-2">Show Portfolio of Schedules</button>
+                            {% endif %}
+                            </form>
+                            <button id="downloadBtn" class="btn btn-primary" style="float: right; margin-right: 10px;">Download</button>
+                            <form method="post" action="{% url 'create_spreadsheet' schedule_pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary mr-2">Create Spreadsheet</button>
+                            </form>
+                        </div>
+                    </div>
+                </h5>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <tbody>
+                            <tr><td>Schedule Title</td><td id="scheduleName">{{ schedule.name }}</td></tr>
+                            <tr><td>Semester</td><td id="semesterName">{{ semester }}</td></tr>
+                            {% comment %} <tr><td class="text-right"><a class="btn btn-secondary" href="">Modify the title</a></td><td><a class="text-right btn btn-danger" href="">Delete the schedule</a></td></tr> {% endcomment %}
+                            <tr>
+                                <td>Version Name</td>
+                                <td>
+                                    <span id="versionName">{{ versions.0.name }}</span>
+                                    <input type="text" id="versionNameInput" value="{{ versions.0.name }}" style="display:none;"/>
+                                    <button id="editVersionNameBtn" class="btn btn-lg btn-link"><i class="fas fa-pen-square"></i></button>
+
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="">Select version</td>
+                                <td>
+                                    <div class="form-group">
+                                        <select class="form-control" id="versionSelect" data-num-slots="{{ num_slots }}">
+                                            {% for version in versions %}
+                                                <option value="{{ version.id }}">{{ version.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button id="deleteVersionBtn" class="btn btn-danger ml-2">Delete</button>
+                                    </div>
+                                </td>
+                            </tr> 
+
+                            <tr>
+                                <td class="">Profile Preference</td>
+                                <td>
+                                    <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#profilePreferenceCollapse" aria-expanded="false" aria-controls="profilePreferenceCollapse">
+                                        Show Profile Preference
+                                    </button>
+                                    <div class="collapse mt-2" id="profilePreferenceCollapse">
+                                        <div class="card card-body">
+                                            <ul id="profilePreferenceList"></ul>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="">Constraints</td>
+                                <td>
+                                    <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#constraintsCollapse" aria-expanded="false" aria-controls="constraintsCollapse">
+                                        Show Constraints
+                                    </button>
+                                    <div class="collapse mt-2" id="constraintsCollapse">
+                                        <div class="card card-body">
+                                            <ul id="predefinedConstraintsList"></ul>
+                                            <ul id="groupConstraintsList"></ul>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    {{ errors }}
+                    <br/>
+                    <div class="grid-container">
+                        <table id="scheduleTable" class="table table-bordered table-striped" style="margin-top: 20px">
+                            <thead>
+                                <tr>
+                                <th class="sticky-top bg-white" style="min-width:150px" scope="col">Final exam date and time</th>
+                                {% for schedule_date in schedule_dates_display %}
+                                <th class="sticky-top bg-white" scope="col">{{ schedule_date }}</th>
+                                {% endfor %}
+                            </tr>
+                            </thead>
+                            <tbody>
+                                        {% for exam_slot in exam_slots %}
+                                            <tr>
+                                                <td><p class="card-title">{{ exam_slot.time }}</p></td>
+                                                {% for counter in exam_slot.slots %}
+                                                    <td id="slot_{{ counter }}">
+                                                        {% for exam in exams|access_dict_index:counter %}
+                                                            <div class="card slotContent {{ exam.style_type }}" id="{{ exam.name }}">
+                                                                <div class="card-body">
+                                                                    <p class="card-title">{{ exam.name }}</p>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                    </td>
+                                                {% endfor %}
+                                        {% endfor %}
+                        </table>
+                        <div id="hideTable">
+                            <h1 class="sticky-top">Loading...</h1>
+                            <h2></h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <br/>
+            <div class="card">
+                <h5 class="card-header">Course Groupings</h5>
+                <div class="card-body overflow-auto" style="height: 1000px;">
+                    {{ errors }}
+                    <div class="form-inline">
+                    <button id="exportBtn" class="btn btn-dark">Export the course grouping</button>&nbsp;
+                    <input type="text" id="exportFileName" placeholder="File name" class="form-control text-right"/>.json
+                    </div>
+                    <br>
+                    <hr>
+                    {% comment %} <form id='search-form' name='search-form' method='post' class='form-inline' action='{% url "analyze" %}'>
+                        {% csrf_token %}
+                        {{ search_form.search_method }} &nbsp;&nbsp;&nbsp;&nbsp;
+                        {{ search_form.search_field }}&nbsp;&nbsp;&nbsp;&nbsp;<label for="ambiguous">Show only ambiguous courses:</label> &nbsp;{{ search_form.ambiguous }}&nbsp;&nbsp;&nbsp;&nbsp;
+                        <input class="btn btn-primary" type='submit' value="Search"/>
+                    </form> {% endcomment %}
+                    <br/>
+                    <h4><span id="num_entries">{{ entries }}</span> entries found.</h4>
+                    <br/>
+                    <table class="table table-bordered table-hover" id='course-table'>
+                        <thead>
+                            <tr><th>CRN</th><th>Course ID/Section</th><th>Course Title</th><th>Instructor</th><th>Meeting times</th><th class="col-md-2">Course Group</th></tr>
+                        <tbody>
+                            {% for course in courses_info %}
+                            <tr><td>{{ course.crn }}</td><td>{{ course.course_id}}</td>
+                                <td>{{ course.title }}</td><td>{{ course.instructor }}</td>
+                                <td>{{ course.meeting_times|safe }}</td>
+                                <td>{{ course.course_group }}</td>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <datalist class="datalist" id="group-options">
+                {% for group in course_groups %}
+                <option value="{{ group }}">{{ group }}</option>
+                {% endfor %}
+            </datalist>
+            
+
+            <br/>
+
+            <div class="card" style="border-bottom: 2px solid #dee2e6;">
+                <h5 class="card-header">Student Conflict Details</h5>
+                <div class="card-body overflow-auto" style="height: 1000px;">
+                    <div class="container">
+                        {% for key, value in problems.items %}
+                        <div class="row border-bottom">
+                            <div class="col-md-8 col-border">
+                                <h6>{{ key }}</h6>
+                                <ol>
+                                    {% for pair in value %}
+                                    <li>{{ pair }}</li>
+                                    {% endfor %}
+                                </ol>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <br/>
+        </div>
+        
+        <!-- New Box for JSONField Data at the Bottom -->
+        <div class="col-3">
+            <div class="card sticky-top">
+                <h5 class="card-header">Analysis Summary</h5>
+                <div class="card-body overflow-auto" style="height: 500px;">
+                    <p class="card-text">Drag and Drop to modify the schedule.<br/></p>
+                    <button id="analyzeBtn" class="btn btn-primary">Evaluate the schedule</button>
+                    <button id="saveBtn" class="btn btn-success" style="display: none;">Save the schedule</button>
+                    <span id="reloadWarning">Reload the page to view new analysis or a new version in the drop-down</span>
+                    <p id="statusBar">&nbsp;</p>
+                    <table id="summaryTable" class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Issues</th>
+                                <th>Cases</th>
+                                
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Overlaps</td><td id="overlap">{{ issues.student_overlap }}</td>
+                            </tr>
+                            <tr>
+                                <td>Unavoidable Overlaps</td><td id = "forced_overlap"> {{ issues.forced_overlap }}</td>
+                            </tr>
+                            <tr>
+                                <td>Three exams in 24 hours</td><td id="three_in_24">{{ issues.three_in_24 }}</td>
+                            </tr>
+                            <tr>
+                                <td>Four exams in 48 hours</td><td id="four_in_48">{{ issues.four_in_48 }}</td>
+                            </tr>
+                            <tr>
+                                <td>Back to back exams</td><td id="back_to_back">{{ issues.student_back_to_back }}</td>
+                            </tr>
+                            <tr>
+                                <td>Night-to-morning exams</td><td id="night_morning">{{ issues.night_morning }}</td>
+                            </tr>
+                            <tr>
+                                <td>Students having at least one inconveniences</td><td id="inconvenient">{{ issues.inconvenient_students }}</td>
+                            </tr>
+                            <tr>
+                                <td>Faculty overlaps</td><td id="f_overlap">{{ issues.faculty_overlap }}</td>
+                            </tr>
+                            <tr>
+                                <td>Faculty back to backs</td><td id="f_back_to_back">{{ issues.faculty_back_to_back }}</td>
+                            </tr>
+                    </table>
+                </div>
+            </div>
+            <!-- New Box for JSONField Data at the Bottom -->
+        </div>
+
+    <style>
+        /* Add border to the right side of each column */
+        .col-border {
+            border-right: 2px solid #dee2e6;
+            border-bottom: 2px solid #dee2e6;
+            padding-right: 15px; /* Optional: Add padding to improve spacing */
+        }
+    
+        /* Adjust the last column to remove the border */
+        .col-border:last-child {
+            border-right: none;
+        }
+    </style>
+
+    <style>
+        .row-border {
+            border-bottom: 4px solid #dee2e6;
+            padding-bottom: 15px; /* Optional: Add padding to improve spacing */
+        }
+    </style>
+</div>
+
+<script src='https://cdnjs.cloudflare.com/ajax/libs/dragula/3.6.6/dragula.js'></script>
+<script src="{% static 'optimizer/dashboard.js' %}"></script>
+{% csrf_token %}
+<script>
+    $(function(){
+        const progressID = Math.floor(Math.random() * 10000000);
+        const drake = activateDnD();
+        let hasResults = false;
+        let summaryData = null;
+        $("#hide").hide();
+        $("#hideTable").hide();
+
+        if ($("#overlap").html() != "") {   
+            $("#summaryTable").show();
+            $("#analyzeBtn").hide();
+        } else {
+            $("#summaryTable").hide();
+            $("#analyzeBtn").show();
+        }
+
+        $("#exportBtn").on("click", function(){
+            let fileName = $("#exportFileName").val();   
+             console.log(fileName);
+             if(fileName === "") {
+                 fileName = "course_group"
+             }          
+             $.ajax({
+                 url: '{% url "export_cg_from_schedule" schedule.pk %}',
+                 method: "GET",
+                 dataType: "json",
+                 success: function (data) {
+                     console.log(data);
+                     const a = document.createElement('a');
+                     const file = new Blob([JSON.stringify(data)], {type: "text/plain"});
+                     const url = window.URL.createObjectURL(file);
+                     a.href = url;
+                     a.download = fileName + ".json";
+                     document.body.append(a);
+                     a.click();
+                     a.remove();
+                     window.URL.revokeObjectURL(url);
+                 }
+                 }).done(function(data,textStatus,jqXHR) {
+                 }).fail(function(jqXHR, textStatus, errorThrown ) {
+                     console.log(errorThrown);
+                 }).always(function(){
+                 });
+         });
+
+        // Saves the current schedule when the course group is dropped into another slot
+        drake.on("drop", function(el, target, source, sibling){
+            console.log(el.id + " moved from " + source.id + " to " + target.id);
+            data = {
+                group2slot: getGroup2slot(),
+                schedule_pk: {{ schedule.pk }},
+            } 
+
+            $.ajax({
+                url: "{% url 'save' %}",
+                type: "POST",
+                headers: {
+                    "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    "Content-Type": "application/json",
+                    "mode": "same-origin",
+                },
+                data: JSON.stringify(data),
+                dataType: "text"
+            }).done(function(data,textStatus,jqXHR) {
+                updateStatusBar("The schedule is saved.", "success");
+                $("#summaryTable").hide();
+                $("#analyzeBtn").show();
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                updateStatusBar("Error: Could not save the schedule", "error");
+            });
+        });
+
+
+        // Analyze the schedule
+        $("#analyzeBtn").on("click", function() {
+            hasResults = true;
+            $("#analyzeBtn").hide();
+            $("#hideTable").show();
+            updateStatusBar("Analyzing the schedule...", "info");
+            $.ajax({
+                url: '{% url "analyze" schedule.pk %}',
+                dataType: 'json',
+                }).done(function(data,textStatus,jqXHR) {
+                    summaryData = data;
+                    updateSummaryTable();
+                    updateStatusBar("Analysis completed.", "success");
+                    $("#scheduleTable").show();
+                    $("#summaryTable").show();
+                    $("#saveBtn").show();
+                }).fail(function(jqXHR, textStatus, errorThrown ) {
+                    updateStatusBar("Server Error", "error");
+                    $("#analyzeBtn").show();
+                }).always(function(){
+                    $("#hideTable").hide();
+                });
+                //setTimeout(function() {getProgress("statusBar")}, 1000);
+        });
+
+        // Save the schedule
+        $("#saveBtn").on("click", function() {
+            const data = {
+                schedule_pk: {{schedule.pk}},
+                group2slot: getGroup2slot(),
+                summary: summaryData
+            };
+
+            $.ajax({
+                url: '{% url "save_schedule_version" %}',
+                type: "POST",
+                headers: {
+                "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+                "Content-Type": "application/json",
+                "mode": "same-origin",
+                },
+                dataType: "json",
+                data: JSON.stringify(data),
+            }).done(function (data, textStatus, jqXHR) {
+                updateStatusBar("Schedule is saved successfully", "success");
+                $("#saveBtn").hide();
+                $("#reloadWarning").show();
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                updateStatusBar("Error: Could not save the ScheduleVersion", "error");
+                $("#saveBtn").show();
+            });
+        });
+
+        function getGroup2slot() {
+            const group2slot = {};
+            for (var i = 0; i <= {{ max_id }}; i++) {
+                let id = "slot_" + i;
+            
+                let slotElement = document.getElementById(id);
+                if (slotElement == null) {
+                    continue;
+                }
+
+                let examElements = slotElement.children;
+                for (let k = 0; k < examElements.length; k++) {
+                    let examElement = examElements[k];
+                    if (!examElement.classList.contains("details"))
+                        group2slot[examElement.id] = {
+                            slot_id: i,
+                            is_special: examElement.classList.contains("bg-light") 
+                        };
+                }
+            }
+            return group2slot;
+        }
+
+        $('#deleteVersionBtn').on('click', function() {
+            const versionId = $('#versionSelect').val();
+            
+            // Confirmation before deletion
+            if (confirm('Are you sure you want to delete this version?')) {
+                $.ajax({
+                    url: `/schedule/version/delete/${versionId}/`,
+                    type: 'POST',
+                    headers: {
+                        "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        "Content-Type": "application/json",
+                        "mode": "same-origin",
+                    },
+                    success: function(data) {
+                        $(`#versionSelect option[value="${versionId}"]`).remove();
+                        alert('Version deleted successfully');
+                        // Select the first version in the dropdown after deletion
+                        $('#versionSelect').val($('#versionSelect option:first').val()).trigger('change');
+                    },
+                    error: function(error) {
+                        alert('Error deleting version');
+                    }
+                });
+            }
+        });
+
+        function updateStatusBar(text, type) {
+            $('#statusBar').html(text);
+            $('#statusBar').removeClass("text-dark");
+            if (type === "success") {
+                $('#statusBar').addClass("text-success");
+                setTimeout(function(){
+                    $('#statusBar').html("&nbsp;");
+                    $('#statusBar').removeClass("text-success");
+                }, 3000);
+            } else if (type === "error") {
+                $('#statusBar').addClass("text-danger");
+                setTimeout(function(){
+                    $('#statusBar').html("&nbsp;");
+                    $('#statusBar').removeClass("text-danger");
+                }, 3000);
+            } else if (type === "info") {
+                $('#statusBar').addClass("text-dark");
+            }
+        }
+
+        function updateSummaryTable() {
+            $.each(summaryData, function(key, value) {
+                    $("#" + key).html(value);
+                }
+            );
+        }
+
+        function activateDnD() {
+            const list = [];
+            for(let i = 0; i <= {{ max_id }}; i++) {
+                list.push(document.querySelector("#slot_" + i));
+            }
+            return dragula(list);
+        }        
+
+        function getEditDataAsJSON(courseGroup, fromID, toID) {
+            const data = summaryData;
+            data["course_group"] =  courseGroup;
+            data["from_slot"] = fromID;
+            data["to_slot"] = toID;
+            return JSON.stringify(data)
+        }
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const versionSelect = document.getElementById('versionSelect');
+        const numSlots = versionSelect.dataset.numSlots;
+        const versionNameSpan = document.getElementById('versionName');
+        const versionNameInput = document.getElementById('versionNameInput');
+        const editVersionNameBtn = document.getElementById('editVersionNameBtn');
+
+        versionSelect.addEventListener('change', function() {
+            const versionId = this.value;
+
+            if (versionId) {
+                // Fetch and display the selected version
+                fetch(`/schedule/version/${versionId}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        versionNameSpan.textContent = data.name; 
+                        const regroupedData = regroupGroup2slot(data.group2slot);
+                        updateScheduleTable(regroupedData, numSlots);
+                        updateSummaryTable(data.issues);
+                    })
+                    .catch(error => console.error('Error fetching version data:', error));
+            } else {
+                // Fetch and display the current schedule
+               
+            }
+        });
+
+        editVersionNameBtn.addEventListener('click', function() {
+            versionNameSpan.style.display = 'none';
+            versionNameInput.style.display = 'inline-block';
+            versionNameInput.focus();
+        });
+
+        versionNameInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                const newVersionName = versionNameInput.value;
+                versionNameSpan.textContent = newVersionName;
+                versionNameSpan.style.display = 'inline-block';
+                versionNameInput.style.display = 'none';
+                
+                const versionId = versionSelect.value;
+                console.log("VERSION AFTER ENTER: ", versionId)
+                if (versionId) {
+                    const data = {
+                        name: newVersionName
+                    };
+
+                    fetch(`/schedule/version/update/${versionId}/`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        body: JSON.stringify(data)
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Update the version name in the dropdown
+                        const option = versionSelect.querySelector(`option[value="${versionId}"]`);
+                        option.textContent = newVersionName;
+                    })
+                    .catch(error => {
+                        console.error('Error updating version name:', error);
+                    });
+                }
+            }
+        });
+
+        function regroupGroup2slot(group2slot) {
+            const regrouped = {};
+            for (const [course_group, property] of Object.entries(group2slot)) {
+                let slot_id = property['slot_id']
+                let is_special = property['is_special']
+                if (!regrouped[slot_id]) {
+                    regrouped[slot_id] = [];
+                }
+                regrouped[slot_id].push({course_group: course_group, is_special: is_special});
+            }
+            return regrouped;
+        }
+
+        function updateScheduleTable(group2slot, num_slots) {
+            // Clearing all cells in the table
+            for (let slotId = 0; slotId < numSlots; slotId++) {
+                const slotElement = document.getElementById(`slot_${slotId}`);
+                if (slotElement) {
+                    slotElement.innerHTML = '';
+                }
+            }
+
+            // Iterate through group2slot to populate the schedule table
+            for (const [slot_id, courses] of Object.entries(group2slot)) {
+                for (let course_data of courses) {
+                    const course_group = course_data.course_group
+                    const is_special = course_data.is_special
+
+                    const slotElement = document.getElementById(`slot_${slot_id}`);
+    
+                    if (slotElement) {
+                        // Create a new card element for each course group
+                        const classDiv = document.createElement('div');
+                        classDiv.className = `card slotContent ${is_special ? 'bg-light' : 'bg-primary text-white'}`;
+                        classDiv.id = course_group;
+    
+                        const cardBody = document.createElement('div');
+                        cardBody.className = 'card-body';
+    
+                        const cardTitle = document.createElement('p');
+                        cardTitle.className = 'card-title';
+                        cardTitle.textContent = course_group;
+    
+                        cardBody.appendChild(cardTitle);
+                        classDiv.appendChild(cardBody);
+                        slotElement.appendChild(classDiv);
+                    }
+                }
+                
+            }
+        }
+        
+
+        function updateSummaryTable(issues) {
+            document.getElementById('overlap').textContent = issues.overlap;
+            document.getElementById('three_in_24').textContent = issues.three_in_24;
+            document.getElementById('four_in_48').textContent = issues.four_in_48;
+            document.getElementById('back_to_back').textContent = issues.back_to_back;
+            document.getElementById('night_morning').textContent = issues.night_morning;
+            document.getElementById('f_overlap').textContent = issues.f_overlap;
+            document.getElementById('f_back_to_back').textContent = issues.f_back_to_back;
+        }
+    });
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.68/pdfmake.min.js" integrity="sha512-gYUM+7JjtBqPPGOgwgOZ+NwjGl+11/EP124oB+ihjlBpLgP5LTh7R/Iwcdy//cgH+QzrjspBiJI5iUegTNww3w==" crossorigin="anonymous"></script>    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.68/vfs_fonts.min.js" ></script>    
+
+<script>
+    function downloadPDFWithPDFMake() {
+        // Extract table header text
+        var tableHeaderText = [...document.querySelectorAll('#scheduleTable thead tr th')].map(thElement => ({
+            text: thElement.textContent.trim(),
+            style: 'tableHeader'
+        }));
+
+        // Extract table rows and cells, getting text content from nested elements
+        var tableRowCells = [...document.querySelectorAll('#scheduleTable tbody tr')].map(trElement => {
+            return [...trElement.querySelectorAll('td')].map(tdElement => {
+                // Extract text from all nested elements and join them
+                var cellContent = [...tdElement.querySelectorAll('.card-title')].map(cardTitle => cardTitle.textContent.trim()).join(', ');
+                return { text: cellContent, style: 'tableData' };
+            });
+        });
+
+        // Ensure each row has the same number of cells as the header
+        var tableDataAsRows = tableRowCells.map(row => {
+            while (row.length < tableHeaderText.length) {
+                row.push({ text: '', style: 'tableData' });
+            }
+            return row;
+        });
+
+        // Define the PDF document structure
+        var docDefinition = {
+            pageOrientation: 'landscape', // Set page orientation to landscape
+            pageMargins: [10, 10, 10, 10], // Reduce margins
+            header: { text: 'Schedule Table', alignment: 'center' },
+            footer: function(currentPage, pageCount) {
+                return { text: `Page ${currentPage} of ${pageCount}`, alignment: 'center' };
+            },
+            content: [
+                {
+                    style: 'tableExample',
+                    table: {
+                        headerRows: 1,
+                        body: [
+                            tableHeaderText,
+                            ...tableDataAsRows,
+                        ]
+                    },
+                    layout: {
+                        fillColor: function(rowIndex) {
+                            return (rowIndex % 2 === 0) ? '#f2f2f2' : null;
+                        }
+                    },
+                },
+            ],
+            styles: {
+                tableExample: {
+                    margin: [0, 20, 0, 80],
+                },
+                tableHeader: {
+                    margin: 12,
+                    color: 'white',
+                    fillColor: '#0f4871',
+                },
+                tableData: {
+                    margin: 12,
+                },
+            },
+        };
+
+        // Generate and download the PDF
+        pdfMake.createPdf(docDefinition).download('Schedule_Table.pdf');
+    }
+
+    // Attach click event listener to downloadBtn
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+        console.log('Generating PDF...');
+        downloadPDFWithPDFMake();
+    });
+</script>
+
+<script>
+    // Data for Profile Preference
+    const profilePreferenceData = {{ schedule.preference_profile | safe }};
+
+    function populateProfilePreference(data) {
+        const list = document.getElementById('profilePreferenceList');
+        list.innerHTML = ''; // Clear any existing items
+        for (const [key, value] of Object.entries(data)) {
+            const listItem = document.createElement('li');
+            listItem.innerHTML = `<strong>${getProfileDescription(key)}:</strong> ${value}`;
+            list.appendChild(listItem);
+        }
+    }
+
+    function getProfileDescription(constraint) {
+        switch (constraint) {
+            case 'overlap':
+                return 'Overlapping weight';
+            case 'threein24':
+                return '3-in-24 weight';
+            case 'fourin48':
+                return '4-in-48 weight';
+            case 'B2B':
+                return 'Back-to-back weight';
+            case 'PMtoAM':
+                return 'Night-to-morning weight';
+            case 'night':
+                return 'Night-exam weight';
+            case 'facultyoverlap':
+                return 'Faculty overlapping weight';    
+            case 'facultyB2B':
+                return 'Faculty back-to-back weight';    
+            default:
+                return constraint;
+        }
+    }
+
+    // Data for Constraints
+    const predefinedConstraintsData = {{ predefined_constraints | safe }};
+    const groupConstraintsData = {{ group_constraints | safe }};
+
+    function populatePredefinedConstraints(data) {
+        const list = document.getElementById('predefinedConstraintsList');
+        const outerItem = document.createElement('li');
+        outerItem.innerHTML = '<strong>Courses with predefined exam time:</strong>'
+        const nestedList = document.createElement('ul');
+        for (const [key, value] of Object.entries(data)) {
+            const nestedListItem = document.createElement('li');
+            nestedListItem.textContent = `${key}: ${value}`;
+            nestedList.appendChild(nestedListItem);
+        }
+        outerItem.appendChild(nestedList);
+        list.appendChild(outerItem)
+    }
+
+    function populateGroupConstraints(data) {
+        const list = document.getElementById('groupConstraintsList');
+        list.innerHTML = ''; // Clear any existing items
+        for (const [constraint, courses] of Object.entries(data)) {
+            if (courses.length > 0) {
+                const listItem = document.createElement('li');
+                listItem.innerHTML = `<strong>${getConstraintDescription(constraint)}:</strong>`;
+                
+                const nestedList = document.createElement('ul');
+                courses.forEach(course => {
+                    const nestedListItem = document.createElement('li');
+                    nestedListItem.textContent = course;
+                    nestedList.appendChild(nestedListItem);
+                });
+
+                listItem.appendChild(nestedList);
+                list.appendChild(listItem);
+            }
+        }
+    }
+
+    function getConstraintDescription(constraint) {
+        switch (constraint) {
+            case 'no_last_day':
+                return 'Course groups that should not be placed on the last exam day';
+            case 'no_last_2days':
+                return 'Course groups that should not be placed on the last 2 exam days';
+            case 'no_night':
+                return 'Course groups that should not be placed at night';
+            case 'no_fri_mon':
+                return 'Course groups that should not be placed on Friday and Monday';
+            default:
+                return constraint;
+        }
+    }
+
+    // Populate the data when the document is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        populateProfilePreference(profilePreferenceData);
+        populatePredefinedConstraints(predefinedConstraintsData);
+        populateGroupConstraints(groupConstraintsData);
+    });
+</script>
+
+
+<div id="hide">
+    <h1>Loading...<br/>Do not reload.</h1>
+    <h2></h2>
+</div>
+
+<style>
+    .version-option {
+        display: flex;
+        align-items: center;
+    }
+    .delete-version-btn {
+        background: none;
+        border: none;
+        color: red;
+        cursor: pointer;
+        margin-left: 5px;
+    }
+    </style>
+    
+{% endblock %}

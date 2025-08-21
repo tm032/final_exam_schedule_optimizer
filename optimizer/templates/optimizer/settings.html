@@ -1,0 +1,245 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Load Data | Exam Scheduler{% endblock %}
+{% block head %}
+{% endblock %}
+{% block settingsTab %}active{% endblock %}
+{% block content %}
+<br/>
+<div class="card w-75 mx-auto border-success">
+    <div class="card-body">
+    <p class="font-italic">This page allows you to enter which section don't have an exam and 
+        to double-check/edit which course group each section is assigned to.  
+        By default, each course is assigned: </p>
+    <ul class="font-italic">
+        <li>NO_EXAM if it does not have an assigned meeting time in the exam scheduling spreadsheet you uploaded</li>
+        <li>Its course/section name, if it is a special course that should be assigned to its own slot (e.g. MATH201, SIGN101-02, etc).</li>
+        <li>Otherwise, if it is not assigned to NO_EXAM or its course/section name, our best guess of 
+            which meeting time its exam slot should be associated with.  This is flagged as “Clear” in the 
+            first column if there is a unique meeting time, and “Ambiguous” if there are multiple times.</li>
+    </ul>
+    <br/>
+    <p>On this page, you should update and verify the Course Group of each section:</p>
+    <ol>
+        <li>Update the course group to be NO_EXAM for any class that will not offer an exam.</li>
+        <li>Check the course group of all other classes and verify that it is correct or update it to the correct slot.  
+            Slots should be entered in all caps with 0 spaces/no colon and in military time (e.g. MWF1300 for classes that should be 
+            grouped in the MWF 1:00pm class block for exam slots).  Special courses should remain assigned to their course group 
+            (e.g. MATH201) rather than being assigned a time.  As you type, the system will help autofill course groups 
+            (e.g. as you type MWF1, you will see all options beginning with MWF1).</li>
+        <li>Later, if you want to quickly search for and change an individual course, you can use the search bar at the top of the 
+            “Course Groupings” box.  To go back to seeing all courses, clear the search box (so that it is blank) and hit “Search” again.</li>
+        </ol>
+    </div>
+</div>
+</br/>
+<div class="card w-75 mx-auto">
+    <h5 class="card-header">Key information&nbsp;&nbsp;<a href="{% url "settings" %}" class="btn btn-primary">Switch semester</a></h5>
+    <div class="card-body">
+        <table class="table table-bordered table-hover">
+            <tbody>
+                <tr><th>Semester Name</th><td>{{ semester }}</td></tr>
+                <tr><th>Academic Period</th><td>{{academic_period }}</td></tr>
+                <tr><th>Exam Start Date</th><td>{{ start_date }}</td></tr>
+                <tr><th>Exam End Date</th><td>{{ end_date }}</td></tr>
+                <tr><th>Exam Times</th><td>{{ exam_times}}</td></tr>
+                <tr><th>Special Courses</th><td>{{ special_courses}}</td></tr>
+            </tbody>
+        </table>
+        If you want to change any of the settings above, add or remove courses, or edit students' enrollment, please <a href="{% url "load" %}">re-load</a> the data.
+    </div>
+</div>
+<br/>
+<div class="card w-75 mx-auto">
+    <h5 class="card-header">Course Groupings</h5>
+    <div class="card-body">
+        {{ errors }}
+        <div class="form-inline">
+        <button id="exportBtn" class="btn btn-dark">Export the course grouping</button>&nbsp;
+        <input type="text" id="exportFileName" placeholder="File name" class="form-control text-right"/>.json
+        </div>
+        <br>
+        <form method="POST" name="import-form" id="import-form" action="{% url 'import_course_group' semester_pk %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <button id="importBtn" class="btn btn-dark">Import the course grouping</button>
+            {{ import_form.group_file }} &nbsp;
+        </form>
+        <form method="post" action="{% url 'show_matrix' semester_pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary mr-2">Show overlaps between courses</button>
+        </form>
+        <hr>
+        <form id='search-form' name='search-form' method='post' class='form-inline' action='{% url "settings" %}'>
+            {% csrf_token %}
+            {{ search_form.search_method }} &nbsp;&nbsp;&nbsp;&nbsp;
+            {{ search_form.search_field }}&nbsp;&nbsp;&nbsp;&nbsp;<label for="ambiguous">Show only ambiguous courses:</label> &nbsp;{{ search_form.ambiguous }}&nbsp;&nbsp;&nbsp;&nbsp;
+            <input class="btn btn-primary" type='submit' value="Search"/>
+        </form>
+        <br/>
+        <h4><span id="num_entries">{{ entries }}</span> entries found.</h4>
+        <br/>
+        <table class="table table-bordered table-hover" id='course-table'>
+            <thead>
+                <tr><th>Ambiguous</th><th>CRN</th><th>Course ID/Section</th><th>Course Title</th><th>Instructor</th><th>Meeting times</th><th class="col-md-2">Course Group</th><th></th></tr>
+            <tbody>
+                {% for course in courses_info %}
+                <tr><td id="ambiguous_{{ course.crn }}">{{ course.ambiguous|safe }}</td><td>{{ course.crn }}</td><td>{{ course.course_id}}</td>
+                    <td>{{ course.title }}</td><td>{{ course.instructor }}</td><td>{{ course.meeting_times|safe }}</td>
+                    <td>
+                        <input class="form-control" list="group-options" id="group_{{ course.crn }}" value="{{ course.course_group }}" placeholder="Type to search...">
+                    </td>
+                    <td><button class="btn btn-success confirmBtn" id="{{ course.crn }}">Confirm</button></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<datalist class="datalist" id="group-options">
+    {% for group in course_groups %}
+    <option value="{{ group }}">{{ group }}</option>
+    {% endfor %}
+</datalist>
+
+<script type='text/javascript'>
+    $(function(){
+
+        setConfirmEventHandler();
+
+        $("#search-form").on("submit", function(e) {
+            e.preventDefault();
+            
+            let formData = new FormData(this);
+                
+            $.ajax({
+                url: "{% url 'settings' %}/{{ semester_pk }}",
+                type: "POST",
+                data: formData,
+                processData: false, 
+                contentType: false,
+                cache: false,
+                dataType: "json"
+              }).done(function(data,textStatus,jqXHR) {
+                updateCourseTable(data);
+              }).fail(function(jqXHR, textStatus, errorThrown) {
+                alert("Internal Server Error");
+              });
+
+        });
+
+        $("#search_method").on("change", function(e) {
+            choice_id = $("#search_method").val();
+            if(choice_id == 5)  {
+                $("#search_field").attr("list", "group-options");
+            } else {
+                $("#search_field").removeAttr("list")
+            }
+        })
+
+        function updateCourseTable(data) {
+            $("#course-table tbody").empty();
+
+            let innerHTML = '';
+
+            let count = 0;
+
+            $.each(data, function(index, course) {
+                count += 1;
+                innerHTML += '<tr><td id="ambiguous_' + course.crn + '">' + course.ambiguous + '</td><td>' + course.crn + '</td><td>' + course.course_id + '</td> \
+                    <td>' + course.title + '</td><td>' + course.instructor + '</td><td>' + course.meeting_times + '</td> \
+                    <td> <input class="form-control" list="group-options" id="group_' + course.crn + '" value="' + course.course_group + '" placeholder="Type to search..."></td> \
+                    <td><button class="btn btn-success confirmBtn" id="' + course.crn + '">Confirm</button></td></tr>'
+            });
+
+            $("#course-table tbody").html(innerHTML);
+            $("#num_entries").html(count);
+            setConfirmEventHandler();
+        }
+
+
+        function setConfirmEventHandler() {
+            $(".confirmBtn").on("click", function() {
+                let crn = $(this).attr('id');
+                let group = $("#group_" + crn).val();
+                let regex = group.search("^[a-zA-Z0-9]+");
+                
+                console.log(group);
+
+
+                if(regex == -1 && group != "NO_EXAM") {
+                    alert("You can only use alphabets and numbers for course group names.");
+                } else {
+                    const send_data = {
+                        CRN: crn,
+                        course_group: group,
+                        semester: "{{ semester }}",
+                    };
+
+                    $.ajax({
+                        url: "{% url 'update_group' %}",
+                        type: "POST",
+                        headers: {
+                            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            "Content-Type": "application/json",
+                        },
+                        data: JSON.stringify(send_data),
+                        dataType: "json"
+                    }).done(function(data,textStatus,jqXHR) {
+                        updateCourseGroup(crn, data)
+                    }).fail(function(jqXHR, textStatus, errorThrown) {
+                        alert("Internal Server Error");
+                    });
+                }
+            });
+        }
+
+        function updateCourseGroup(crn, data) {
+            if (data.status == "success") {
+                $("#ambiguous_" + crn).html('<span class="text-primary">Updated!</span>');
+                $("#group_" + crn).val(data.new_group);
+
+                if (data.created) {
+                    $(".datalist").append('<option value="' + data.new_group + '">' + data.new_group + '</option>');
+                }
+
+                setTimeout(function() {
+                    $("#ambiguous_" + crn).html('<span class="text-success">Clear</span>');
+                }, 2000);
+            } else {
+                alert("Error: Please try again.");
+            }
+        }
+
+        $("#exportBtn").on("click", function(){
+            let fileName = $("#exportFileName").val();   
+             console.log(fileName);
+             if(fileName === "") {
+                 fileName = "course_group"
+             }          
+             $.ajax({
+                 url: '{% url "export_course_group" semester_pk %}',
+                 method: "GET",
+                 dataType: "json",
+                 success: function (data) {
+                     console.log(data);
+                     const a = document.createElement('a');
+                     const file = new Blob([JSON.stringify(data)], {type: "text/plain"});
+                     const url = window.URL.createObjectURL(file);
+                     a.href = url;
+                     a.download = fileName + ".json";
+                     document.body.append(a);
+                     a.click();
+                     a.remove();
+                     window.URL.revokeObjectURL(url);
+                 }
+                 }).done(function(data,textStatus,jqXHR) {
+                 }).fail(function(jqXHR, textStatus, errorThrown ) {
+                     console.log(errorThrown);
+                 }).always(function(){
+                 });
+         });
+
+      });
+</script>
+{% endblock %}

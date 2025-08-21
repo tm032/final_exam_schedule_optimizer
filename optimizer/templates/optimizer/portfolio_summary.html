@@ -1,0 +1,282 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+{% load filters %}
+
+{% block title %}Exam Scheduler{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.68/pdfmake.min.js" integrity="sha512-gYUM+7JjtBqPPGOgwgOZ+NwjGl+11/EP124oB+ihjlBpLgP5LTh7R/Iwcdy//cgH+QzrjspBiJI5iUegTNww3w==" crossorigin="anonymous"></script>    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.68/vfs_fonts.min.js" ></script> 
+{% endblock %}
+
+{% block content %}
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .card-container {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-12 card-container">
+                <div class="card">
+                    <h5 class="card-header">Schedule Summaries</h5>
+                    <div class="card-body overflow-auto" style="height: fit-content">
+                        <p id="statusBar">&nbsp;</p>
+                        <table id="summaryTable" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Issues</th>
+                                    {% for schedule in info %}
+                                    <th>{{ schedule.0 }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Overlaps</td>
+                                    {% for schedule in info %}
+                                    <td id="overlap">{{ schedule.1.student_overlap }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Unavoidable Overlaps</td>
+                                    {% for schedule in info %}
+                                    <td id="forced_overlap">{{ schedule.1.forced_overlap }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Three exams in 24 hours</td>
+                                    {% for schedule in info %}
+                                    <td id="three_in_24">{{ schedule.1.three_in_24 }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Four exams in 48 hours</td>
+                                    {% for schedule in info %}
+                                    <td id="four_in_48">{{ schedule.1.four_in_48 }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Back to back exams</td>
+                                    {% for schedule in info %}
+                                    <td id="back_to_back">{{ schedule.1.student_back_to_back }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Night-to-morning exams</td>
+                                    {% for schedule in info %}
+                                    <td id="night_morning">{{ schedule.1.night_morning }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Faculty overlaps</td>
+                                    {% for schedule in info %}
+                                    <td id="f_overlap">{{ schedule.1.faculty_overlap }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Faculty back to backs</td>
+                                    {% for schedule in info %}
+                                    <td id="f_back_to_back">{{ schedule.1.faculty_back_to_back }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Details</td>
+                                    {% for schedule in info %}
+                                    <td>
+                                        <a href="{% url 'schedule' schedule.2 %}" class="btn btn-secondary mt-2">View Schedule Details</a>
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="col-12">
+                            <a href="{% url 'index' %}" class="btn btn-primary mb-3"> Schedule Dashboard</a>
+                            <button class="btn btn-secondary mb-3" onclick="downloadPDFWithPDFMake()">Download Table PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            
+        </div>
+    </div>
+    {% for schedule in info %}
+    <div class="grid-container">
+        <h5 class="card-header">Schedule Name: {{ schedule.0 }}</h5>
+        <table id="scheduleTable{{ forloop.counter }}" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th class="sticky-top bg-white" style="max-width: 50px">Final exam date and time</th>
+                    {% for schedule_date in schedule_dates_display %}
+                    <th class="sticky-top bg-white" scope="col">{{ schedule_date }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for exam_slot in exam_slots %}
+                <tr>
+                    <td><p class="card-title" style="max-width: fit-content">{{ exam_slot.time }}</p></td>
+                    {% for counter in exam_slot.slots %}
+                        <td id="slot_{{ counter }}">
+                            {% for exam in schedule.3|access_dict_index:counter %}
+                                <div class="card slotContent {{ exam.style_type }}" id="{{ exam.name }}" style="max-width: 150px">
+                                    <div class="card-body">
+                                        <p class="card-title">{{ exam.name }}</p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</body>
+
+
+<script>
+    function downloadPDFWithPDFMake() {
+        // Extract table header text from the issues table
+        var tableHeaderText = [...document.querySelectorAll('#summaryTable thead tr th')].map(thElement => ({
+            text: thElement.textContent.trim().replace(/\n/g, ' '),
+            style: 'tableHeader'
+        }));
+
+        // Extract table rows and cells from the issues table
+        var tableRowCells = [...document.querySelectorAll('#summaryTable tbody tr')].map(trElement => {
+            return [...trElement.querySelectorAll('td')].map(tdElement => {
+                // Extract text content
+                var cellContent = tdElement.textContent.trim();
+                return { text: cellContent, style: 'tableData' };
+            });
+        });
+
+        // Ensure each row has the same number of cells as the header
+        var tableDataAsRows = tableRowCells.map(row => {
+            while (row.length < tableHeaderText.length) {
+                row.push({ text: '', style: 'tableData' });
+            }
+            return row;
+        });
+
+        // Extract schedule details for each schedule
+        var schedules = [...document.querySelectorAll('.grid-container')];
+        var schedulePages = schedules.map((container, index) => {
+            var scheduleName = container.querySelector('.card-header').textContent.trim();
+            var scheduleTable = container.querySelector('table');
+            var scheduleHeaderText = [...scheduleTable.querySelectorAll('thead tr th')].map(thElement => ({
+                text: thElement.textContent.trim(),
+                style: 'tableHeader'
+            }));
+            var scheduleRows = [...scheduleTable.querySelectorAll('tbody tr')].map(trElement => {
+                return [...trElement.querySelectorAll('td')].map((tdElement, tdIndex) => {
+                    var cellContent;
+                    if (tdIndex === 0) {
+                        cellContent = tdElement.textContent.trim();
+                    } else {
+                        cellContent = [...tdElement.querySelectorAll('.card.slotContent')].map(divElement => divElement.textContent.trim()).join('\n');
+                    }
+                    return { text: cellContent, style: 'tableData' };
+                });
+            });
+
+            var scheduleDataAsRows = scheduleRows.map(row => {
+                while (row.length < scheduleHeaderText.length) {
+                    row.push({ text: '', style: 'tableData' });
+                }
+                return row;
+            });
+
+            return {
+                text: `${scheduleName}`,
+                style: 'header',
+                pageBreak: index > 0 ? 'before' : undefined, 
+                margin: [0, 10, 0, 10], 
+                table: {
+                    headerRows: 1,
+                    body: [
+                        scheduleHeaderText,
+                        ...scheduleDataAsRows
+                    ]
+                },
+                layout: {
+                    fillColor: function(rowIndex) {
+                        return (rowIndex % 2 === 0) ? '#f2f2f2' : null;
+                    }
+                },
+            };
+        });
+
+        // Define the PDF document structure
+        var docDefinition = {
+            // pageOrientation: 'landscape', // Set page orientation to landscape
+            pageMargins: [10, 10, 10, 10], 
+            header: { text: 'Combined Schedule', alignment: 'center' },
+            footer: function(currentPage, pageCount) {
+                return { text: `Page ${currentPage} of ${pageCount}`, alignment: 'center' };
+            },
+            content: [
+                {
+                    text: 'Issues Table',
+                    style: 'header'
+                },
+                {
+                    style: 'tableExample',
+                    table: {
+                        headerRows: 1,
+                        body: [
+                            tableHeaderText,
+                            ...tableDataAsRows
+                        ]
+                    },
+                    layout: {
+                        fillColor: function(rowIndex) {
+                            return (rowIndex % 2 === 0) ? '#f2f2f2' : null;
+                        }
+                    },
+                },
+                { text: ' ', pageBreak: 'before' }, 
+                ...schedulePages
+            ],
+            styles: {
+                tableExample: {
+                    margin: [0, 10, 0, 30],
+                },
+                tableHeader: {
+                    margin: 4, 
+                    fontSize: 8, 
+                    color: 'white',
+                    fillColor: '#0f4871',
+                },
+                tableData: {
+                    margin: 2, 
+                    fontSize: 6,
+                },
+                header: {
+                    fontSize: 12, 
+                    bold: true,
+                    margin: [0, 10, 0, 10],
+                },
+            },
+        };
+
+        // Generate and download the PDF
+        pdfMake.createPdf(docDefinition).download('Combined_Schedule.pdf');
+    }
+</script>
+
+
+</html>
+{% endblock %}

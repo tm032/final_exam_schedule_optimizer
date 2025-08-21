@@ -1,0 +1,165 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Create Preference Profile | Exam Scheduler{% endblock %}
+{% block head %}
+<style>
+  .small-input {
+      width: 50%;  
+      height: 30px; 
+  }
+  table {
+      width: 100%;
+      border-collapse: collapse;
+  }
+  td {
+      padding: 10px;
+      vertical-align: middle;
+  }
+  .name-label-column {
+      width: 10%;
+      font-weight: bold;
+  }
+  .name-value-column {
+      width: 90%;
+  }
+  .label-column {
+      width: 10%;
+      font-weight: bold;
+  }
+  .value-column {
+      width: 30%;
+  }
+  .convert-column {
+      width: 60%;
+  }
+  .invalid-input {
+      border-color: red;
+      color: red;
+  }
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $(document).ready(function() {
+    function updateConvertedValues() {
+      var overlap = 1
+      if (isNaN(overlap) || overlap === 0) {
+        $(".converted-value").val("N/A");
+        return;
+      }
+
+      $("input[name='threein24-converted']").val((overlap / parseFloat($("input[name='threein24']").val())).toFixed(4));
+      $("input[name='fourin48-converted']").val((overlap / parseFloat($("input[name='fourin48']").val())).toFixed(4));
+      $("input[name='backtoback-converted']").val((overlap / parseFloat($("input[name='backtoback']").val())).toFixed(4));
+      $("input[name='nighttomorning-converted']").val((overlap / parseFloat($("input[name='nighttomorning']").val())).toFixed(4));
+      $("input[name='night-converted']").val((overlap / parseFloat($("input[name='night']").val())).toFixed(4));
+      $("input[name='facultyoverlap-converted']").val((overlap / parseFloat($("input[name='facultyoverlap']").val())).toFixed(4));
+      $("input[name='facultybacktoback-converted']").val((overlap / parseFloat($("input[name='facultybacktoback']").val())).toFixed(4));
+    }
+
+    function updateWeights() {
+      var overlap = 1;
+      if (isNaN(overlap) || overlap === 0) {
+        return;
+      }
+
+      $("input[name='threein24']").val((overlap / parseFloat($("input[name='threein24-converted']").val())).toFixed(4));
+      $("input[name='fourin48']").val((overlap / parseFloat($("input[name='fourin48-converted']").val())).toFixed(4));
+      $("input[name='backtoback']").val((overlap / parseFloat($("input[name='backtoback-converted']").val())).toFixed(4));
+      $("input[name='nighttomorning']").val((overlap / parseFloat($("input[name='nighttomorning-converted']").val())).toFixed(4));
+      $("input[name='night']").val((overlap / parseFloat($("input[name='night-converted']").val())).toFixed(4));
+      $("input[name='facultyoverlap']").val((overlap / parseFloat($("input[name='facultyoverlap-converted']").val())).toFixed(4));
+      $("input[name='facultybacktoback']").val((overlap / parseFloat($("input[name='facultybacktoback-converted']").val())).toFixed(4));
+    }
+
+    function validateInput(input) {
+      if (input.val() == "Infinity") {
+        input.removeClass('invalid-input');
+        return true;
+      }
+      var value = parseFloat(input.val());
+      if (isNaN(value) || value < 0) {
+        input.addClass('invalid-input');
+        return false;
+      } else {
+        input.removeClass('invalid-input');
+        return true;
+      }
+    }
+
+    $("input").on("input", function() {
+      if ($(this).attr("name") === "overlap") {
+        updateConvertedValues();
+      } else if ($(this).attr("name").endsWith("-converted")) {
+        var overlap = 1;
+        if (!isNaN(overlap) && overlap !== 0) {
+          $("input[name='" + $(this).attr("name").replace("-converted", "") + "']").val((overlap / parseFloat($(this).val())).toFixed(4));
+        }
+      } else {
+        updateConvertedValues();
+      }
+    });
+
+    updateConvertedValues();
+  });
+</script>
+{% endblock %}
+{% block optimizeTab %}{% endblock %}
+{% block content %}
+<h1>Create a New Preference Profile</h1>
+<p>
+    Below are the different weights that will be used during optimization. The left is the actual value that will be used, while the right is a comparison against overlaps. 
+    The optimizer will make decisions similar to what is shown in the right column by deciding where to put courses. Adjust the values to affect how the optimizer places courses.
+</p>
+<div class="card w-75 mx-auto border-success">
+  <div class="card-body">
+    <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <table>
+          <tr class="form-group">
+            <td class="name-label-column">
+              {{ form.name.label_tag }}
+            </td>
+            <td class="name-value-column">
+              {{ form.name }}
+            </td>
+          </tr>
+          
+        </table>
+        <table>
+            <tr>
+              <td class="label-column">
+                Overlap
+              </td>
+              <td class="value-column">
+                1
+              </td>
+            </tr>
+            {% for field in form %}
+                {% if field.name != 'name' and field.name != 'overlap' %}
+                    <tr>
+                        <td class="label-column">
+                          {{ field.label_tag }}
+                      </td>
+                        <td class="value-column">
+                            {{ field }}
+                            {{ field.errors }}
+                        </td>
+                        {% if field.name != 'overlap' %}
+                        <td class="convert-column">
+                            <span>1 overlap = <input type="text" class="small-input converted-value" name="{{ field.name }}-converted" style="width: 200px;"> {{ field.name }}</span>
+                        </td>
+                        {% endif %}
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </table>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
+</div>
+<div class="text-center mt-3">
+    <a href="{% url 'preference_profile_list' %}" class="btn btn-secondary">Back to Previous Page</a>
+</div>
+{% endblock %}

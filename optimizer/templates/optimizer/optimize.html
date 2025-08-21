@@ -1,0 +1,342 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Optimize a Schedule | Exam Scheduler{% endblock %}
+{% block head %}
+{% endblock %}
+{% block optimizeTab %}active{% endblock %}
+{% block content %}
+{% load filters %}
+
+<br/>
+<div class="card w-75 mx-auto border-success" id="instruction">
+  <div class="card-body">
+      <p class="font-italic">This page prepares potential schedules for you and allows you to “hardcode” any 
+        assignments in (e.g. assigning all RESC098 and FOUN098 sections to Friday at 3:30pm).</p>
+      
+      <ol>
+        <li> 
+          Use the Initial Constraints option to assign specific exam slots to course groups 
+          (e.g. assigning all RESC098 and FOUN098 sections to Friday at 3:30pm).  
+          Fill in the Course Group (e.g. “FOUN098”) and then select the time slot you would like to assign it.
+        </li>
+        <li>If you want to specify more courses, click the “Add more constraints” button</li>
+        <li>
+          <b>Note:</b> You cannot have any empty constraints.  If there are lingering constraints 
+          that are left blank (i.e. which you don't want to use), click “Remove Constraint”
+        </li>
+        <li>Click “Optimize”.  Then wait while the system creates and analyzes the schedule.</li>
+      </div>
+</div>
+<br/>
+<div class="card w-75 mx-auto" id="constraintForm">
+  <h5 class="card-header">Initial Settings</h5>
+  <div class="card-body">
+    {{ errors }}
+    <h4>Schedule Name</h4>
+    <input type="text" id="schedule_name" class="form-control" />
+    <h4>Semester</h4>
+    <select class="form-control" id="semester_form">
+      {% for semester in semesters %}
+        <option value="{{ semester.pk }}">{{ semester.name }}</option>
+      {% endfor %}
+    </select>
+    <br/>
+    <h5>Optimization Preference</h5>
+    <select class="form-control" id="optimization-scheme">
+      {% for profile in optimizationType %}
+        <option value="{{ profile.id }}" {% if forloop.first %}selected{% endif %}>{{ profile }}</option>
+      {% endfor %}
+  </select>
+    <a href="{% url 'preference_profile_list' %}" class="button">Manage Preference Profiles</a>
+    <br/>
+
+    <h3 class="card-header">List of Course Groups</h3>
+    
+    <div class="card-body">
+      <button onclick="toggleVisibility()" id="toggle_groups_button">Show Groups</button>
+      <div class="flex-container" id="display_groups">
+      {%for group in course_groups%}
+        <div class="text-box">{{group}}</div>
+      {% endfor %}
+      </div>
+    </div>
+    <style>
+      .flex-container {
+          display: flex;
+          flex-wrap: wrap; /* Allows items to wrap onto the next line */
+          gap: 10px; /* Adds space between the items */
+          display: none;
+      }
+      .text-box {
+            flex: 1 1 150px; /* Flex-grow, flex-shrink, and flex-basis */
+            min-width: 100px; /* Ensures a minimum width */
+            padding: 3px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .visible {
+            display: flex; /* Show the container */
+        }
+    </style>
+    <script>
+      function toggleVisibility() {
+          const container = document.getElementById('display_groups');
+          const button = document.getElementById('toggle_groups_button');
+          container.classList.toggle('visible');
+            if (container.classList.contains('visible')) {
+                button.textContent = 'Hide Groups';
+            } else {
+                button.textContent = 'Show Groups';
+            }
+      }
+    </script>
+    <h4>Constraints</h4>
+      <table class="table table-hover" id="constraintTable">
+      <thead>
+        <tr><th>Course Group</th><th>Assigned time slot</th><th></th></tr>
+      </thead>
+      <tbody id="constraints">
+      </tbody>
+      <tr class="btnRow"><td><button id="addConstr" class="btn btn-primary">Add more constraints</button></td><td></td><td></td></tr>
+    </table>
+    <br/>
+    <h4>Course groups that should not be placed on the last exam day</h4>
+    <textarea id="nolastday" class="form-control" cols='40' rows='3'></textarea>
+
+    <h4>Course groups that should not be placed on the last 2 exam days</h4>
+    <textarea id="nolast2days" class="form-control" cols='40' rows='3'></textarea>
+
+    <h4>Course groups that should not be placed at night</h4>
+    <textarea id="nonight" class="form-control" cols='40' rows='3'></textarea>
+
+    <h4>Course groups that should not be placed on Friday and Monday</h4>
+    <textarea id="no_fri_mon" class="form-control" cols='40' rows='3'></textarea>
+    <br/>
+    <button id="optimizeBtn" class="btn btn-danger" >Optimize Single Schedule</button>
+    <button id="optimizePortfolioBtn" class="btn btn-danger" >Optimize Portfolio</button>
+  </div>
+</div>
+<br/>
+
+<datalist class="datalist" id="group-options">
+</datalist>
+
+<datalist class="datalist" id="timeslot-options">
+</datalist>
+
+
+{% csrf_token %}
+<script type="text/javascript">
+  $(function(){
+    let constrRows = 0;
+
+    $.ajax({
+      url: "{% url 'get_semester_course_data_dummy' %}" + $("#semester_form").val(),
+      type: "POST",
+      headers: {
+        "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+        "Content-Type": "application/json",
+      },
+      data: JSON.stringify(constraints),
+      dataType: "json"
+    }).done(function(data,textStatus,jqXHR) {
+      $("#constraints").html("");
+      updateCourseGroups(data["course_group"]);
+      updateTimeslots(data["timeslot"]);
+    });
+
+  function updateCourseGroups(course_groups) {
+    console.log(course_groups);
+    $("#group-options").html("");
+    $.each(course_groups, function(index, group) {
+      $("#group-options").append('<option value="' + group + '">' + group + '</option>');
+    });
+  }
+
+  function updateTimeslots(timeslots) {
+    console.log(timeslots);
+    $("#timeslot-options").html("");
+    $.each(timeslots, function(slot_id, slot_name) {
+      $("#timeslot-options").append('<option value="' + slot_id + '">' + slot_name + '</option>');
+    });
+  }
+
+  function generateNewConstrRow() {
+      $("#constraintTable #constraints").append('<tr id="row_' + constrRows + '"><td><input type="text" class="form-control" list="group-options" id="group_' + constrRows + '"/></td> \
+        <td><select class="form-control" id="timeslot">' + $("#timeslot-options").html() + '</select></td> \
+        <td><button class="btn btn-secondary removeBtn">Remove constraint</button></td></tr>');
+
+      $('.removeBtn').on("click", function(e){
+        $(this).parent().parent().remove();
+      });
+
+      constrRows += 1;
+  }
+
+  $("#addConstr").on("click", generateNewConstrRow);
+
+  $("#semester_form").on("change", function() {
+    $.ajax({
+      url: "{% url 'get_semester_course_data_dummy' %}" + $("#semester_form").val(),
+      type: "POST",
+      headers: {
+        "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+        "Content-Type": "application/json",
+      },
+      data: JSON.stringify(constraints),
+      dataType: "json"
+    }).done(function(data,textStatus,jqXHR) {
+      $("#constraints").html("");
+      updateCourseGroups(data["course_group"]);
+      updateTimeslots(data["timeslot"]);
+    });
+  });
+
+  
+  function getConstraintsTable() {
+    let constraints = [];
+    let groups = [];
+
+    invalid = false;
+    $("#constraints tr").each(function(row, tr) {
+      let group = $(tr).find("input").val();
+      let slot = $(tr).find("select").val();
+
+      if (group == '' || slot == '') {
+        alert("Please enter course groups or remove constraints.");
+        invalid = true;
+        return false;
+      }
+
+      if (groups.includes(group)) {
+        alert("You can only enter one constraint per course group.");
+        invalid = true;
+        return false;
+      } else {
+        groups.push(group);
+      }
+
+      constraints[row] = {
+        course_group: group,
+        timeslot: slot,
+      }
+    });
+
+    if (invalid) {
+      return null;
+    } else{
+      return constraints;
+    }
+  }
+
+  function getConstraintsTableWithTime() {
+    let constraints = [];
+    let groups = [];
+    let invalid = false;
+
+    $("#constraints tr").each(function(row, tr) {
+        let group = $(tr).find("input").val();
+        let slot = $(tr).find("select option:selected").text(); // Access the text of the selected option
+
+        if (group === '' || slot === '') {
+            alert("Please enter course groups or remove constraints.");
+            invalid = true;
+            return false; // Exit the each loop
+        }
+
+        if (groups.includes(group)) {
+            alert("You can only enter one constraint per course group.");
+            invalid = true;
+            return false; // Exit the each loop
+        } else {
+            groups.push(group);
+        }
+
+        constraints[row] = {
+            course_group: group,
+            timeslot: slot,
+        }
+    });
+
+    if (invalid) {
+        return null;
+    } else {
+        return constraints;
+    }
+}
+
+
+  function getGroupConstraints() {
+    return {
+        nolastday: $("#nolastday").val(),
+        nolast2days: $("#nolast2days").val(),
+        nonight: $("#nonight").val(),
+        no_fri_mon: $("#no_fri_mon").val(),
+    };
+}
+
+  $("#optimizeBtn").on("click", function() {
+      let data = {
+        semester_pk: $("#semester_form").val(),
+        opt_type: $("#optimization-scheme").val(),
+        constraints: getConstraintsTable(),
+        schedule_name: $("#schedule_name").val(),
+        nolastday: $("#nolastday").val(),
+        nolast2days: $("#nolast2days").val(),
+        nonight: $("#nonight").val(),
+        no_fri_mon: $("#no_fri_mon").val(),
+        predefined_constraints: getConstraintsTableWithTime(),
+        group_constraints: getGroupConstraints()
+      };
+
+      console.log(JSON.stringify(data));
+
+      if (constraints != null) {
+        $.ajax({
+            url: "{% url 'begin_optimization' %}",
+            type: "POST",
+            headers: {
+              "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+              "Content-Type": "application/json",
+            },
+            data: JSON.stringify(data),
+          }).done(function(data,textStatus,jqXHR) {
+          }); 
+         window.location.href = "{% url 'index' %}"
+      }
+  });
+
+  $("#optimizePortfolioBtn").on("click", function() {
+      let data = {
+        semester_pk: $("#semester_form").val(),
+        opt_type: $("#optimization-scheme").val(),
+        constraints: getConstraintsTable(),
+        schedule_name: $("#schedule_name").val(),
+        nolastday: $("#nolastday").val(),
+        nolast2days: $("#nolast2days").val(),
+        nonight: $("#nonight").val(),
+        no_fri_mon: $("#no_fri_mon").val(),
+        predefined_constraints: getConstraintsTableWithTime(),
+        group_constraints: getGroupConstraints()
+      };
+
+      // console.log(JSON.stringify(data));
+
+      if (constraints != null) {
+        $.ajax({
+            url: "{% url 'optimize_portfolio' %}",
+            type: "POST",
+            headers: {
+              "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+              "Content-Type": "application/json",
+            },
+            data: JSON.stringify(data),
+          }).done(function(data,textStatus,jqXHR) {
+          }); 
+         window.location.href = "{% url 'index' %}"
+      }
+  });
+});
+</script>
+{% endblock %}

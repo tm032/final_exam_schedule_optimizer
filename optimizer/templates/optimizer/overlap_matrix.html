@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 50%;
+            margin: 20px auto;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.8em;
+        }
+        tr:first-child {
+            position: sticky;
+            top: 0; /* Stick the header to the top */
+            background-color: #f0f0f000; /* Light background for better readability */
+            z-index: 2; /* Ensure the header stays on top of other content */
+        }
+        td:first-child {
+            position: sticky;
+            left: 0; /* Stick the first column to the left */
+            background-color: #f0f0f000; /* Light background for better readability */
+            z-index: 1; /* Ensure the first column stays on top of the table rows */
+        }
+        tr:nth-child(odd) {
+            background-color: #f9f9f9; /* Light grey for odd rows */
+        }
+        tr:nth-child(even) {
+            background-color: #e6e6e6; /* Slightly darker grey for even rows */
+        }
+        
+        
+    </style>
+</head>
+<body>
+    <h1>Overlaps between course groups</h1>
+    <button>
+        <a class="btn btn-primary" href="{% url 'settings' pk%}">Back to Semester details</a>
+        </button>
+    <table>
+        <tbody>
+            {% load filters %}  <!-- Load the custom filters -->
+            {% for row in matrix %}
+                <tr>
+                    {% for item in row %}
+                        <td style="{{ item|color_for_value:max_value }}">
+                            {{ item }}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,0 +1,9 @@
+*.mps
+*.pkl
+*.json
+__pycache__
+opt-venv
+*.txt
+.DS_Store
+venv
+temp/*/*.json

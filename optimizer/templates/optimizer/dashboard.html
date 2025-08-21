@@ -1,0 +1,42 @@
+{% extends 'optimizer/base.html' %}
+{% load static %}
+
+{% block title %}Schedule Dashboard | Exam Scheduler{% endblock %}
+{% block head %}
+{% endblock %}
+{% block analyzeTab %}active{% endblock %}
+{% block content %}
+<br/>
+
+</br/>
+<div class="card w-75 mx-auto">
+    <h5 class="card-header">Choose a schedule to analyze</h5>
+    <div class="card-body">
+        <a class="btn btn-success" href="{% url "optimize"%}">Generate a new schedule</a><br/>
+        <table class="table table-bordered table-hover">
+            <thead class='thead-dark'>
+                <tr><th>Semester</th><th>Schedule Name</th><th>Status</th><th>Actions</th></tr>
+            <tbody>
+                {% for schedule in schedules %}
+                    <tr>
+                        <td>{{schedule.semester}}</td>
+                        <td>{{schedule.name}}</td>
+                        <td>{{schedule.status_label}}</td>
+                        <td>
+
+                            {% if schedule.observable %}
+                            <a class="btn btn-primary" href="{% url 'schedule' schedule.pk%}">View</a>
+                            {% endif %}
+                            <form class="form-inline" action="{% url 'delete' schedule.pk %}" method="post" onclick="return confirm('Are you sure you want to delete the schedule? Click \'OK\' if you want to delete the schedule. Click \'Cancel\' to go back.');">
+                                <input type="submit" value="Delete" class="btn btn-danger text-white"/>
+                                {% csrf_token %}
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<br/>
+{% endblock %}
