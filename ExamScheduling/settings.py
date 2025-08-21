@@ -78,7 +78,7 @@ COURSE_NUMBER_COL = "Course Number"
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6&kuyzyg(4p(i@jqo_hqh^sau=u)&05leiu^-7lw5lm$=z5(#i'
+SECRET_KEY = ''
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
