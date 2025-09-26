@@ -14,7 +14,7 @@ law038@bucknell.edu
 
 
 ## Demo Video
-https://drive.google.com/file/d/1iOO_oz95MWzMD1aLZSgbsgOmrwoQObkJ/view?usp=sharing
+https://github.com/user-attachments/assets/dfae8478-01c7-4399-b042-ad8cdedcc9b6
 
 ## User Manual
 https://docs.google.com/document/d/1YXb1GXBP5j3najFNDA2rA7T9Nd5G6RHDPI1lY0sZoKM/edit?usp=sharing 
