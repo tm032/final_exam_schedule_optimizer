@@ -17,7 +17,7 @@ law038@bucknell.edu
 https://github.com/user-attachments/assets/dfae8478-01c7-4399-b042-ad8cdedcc9b6
 
 ## User Manual
-https://docs.google.com/document/d/1YXb1GXBP5j3najFNDA2rA7T9Nd5G6RHDPI1lY0sZoKM/edit?usp=sharing 
+https://github.com/tm032/final_exam_schedule_optimizer/blob/main/User_Manual_Final_Exam_Schedule_Optimizer.pdf
 
 ## Preparing the Data
 The Exam Scheduler requires two CSV files for the Course Information Data and Student Enrollment Data. More details can be found in the User Manual. Sample dataset with a few entries can be found in the `sample_dataset` folder.
